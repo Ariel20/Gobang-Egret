@@ -34,6 +34,7 @@ class Main extends egret.DisplayObjectContainer {
      * Process interface loading
      */
     private loadingView: LoadingUI;
+    private loadingEuiView: LoadingEUI;
 
     public constructor() {
         super();
@@ -63,6 +64,9 @@ class Main extends egret.DisplayObjectContainer {
         //Config to load process interface
         this.loadingView = new LoadingUI();
         this.stage.addChild(this.loadingView);
+
+        this.loadingEuiView = new LoadingEUI();
+        this.stage.addChild(this.loadingEuiView);
 
         //初始化Resource资源加载库
         //initiate Resource loading library
@@ -139,6 +143,9 @@ class Main extends egret.DisplayObjectContainer {
     private POINTBEGINPN:number=3;
     //点增量
     private POINTSTEP:number=8;
+
+    ///自定义按钮的 icon 显示对象
+    private _icon:egret.DisplayObject;
 
     /**
      * 创建游戏场景

@@ -35,6 +35,7 @@ class LoadingUI extends egret.Sprite {
     }
 
     private textField:egret.TextField;
+    
 
     private createView():void {
         this.textField = new egret.TextField();
