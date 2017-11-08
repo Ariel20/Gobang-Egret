@@ -27,28 +27,17 @@
 //
 //////////////////////////////////////////////////////////////////////////////////////
 
-class Main extends egret.DisplayObjectContainer {
-
+class Main extends eui.UILayer {
     /**
      * 加载进度界面
-     * Process interface loading
+     * loading process interface
      */
     private loadingView: LoadingUI;
-    private loadingEuiView: LoadingEUI;
-
-    public constructor() {
-        super();
-        this.addEventListener(egret.Event.ADDED_TO_STAGE, this.onAddToStage, this);
-    }
-
-    private onAddToStage(event: egret.Event) {
+    protected createChildren(): void {
+        super.createChildren();
 
         egret.lifecycle.addLifecycleListener((context) => {
             // custom lifecycle plugin
-
-            context.onUpdate = () => {
-                console.log("hello,world")
-            }
         })
 
         egret.lifecycle.onPause = () => {
@@ -59,74 +48,90 @@ class Main extends egret.DisplayObjectContainer {
             egret.ticker.resume();
         }
 
-
+        //inject the custom material parser
+        //注入自定义的素材解析器
+        let assetAdapter = new AssetAdapter();
+        egret.registerImplementation("eui.IAssetAdapter", assetAdapter);
+        egret.registerImplementation("eui.IThemeAdapter", new ThemeAdapter());
+        //Config loading process interface
         //设置加载进度界面
-        //Config to load process interface
         this.loadingView = new LoadingUI();
         this.stage.addChild(this.loadingView);
-
-        this.loadingEuiView = new LoadingEUI();
-        this.stage.addChild(this.loadingEuiView);
-
+        // initialize the Resource loading library
         //初始化Resource资源加载库
-        //initiate Resource loading library
         RES.addEventListener(RES.ResourceEvent.CONFIG_COMPLETE, this.onConfigComplete, this);
         RES.loadConfig("resource/default.res.json", "resource/");
     }
-
     /**
-     * 配置文件加载完成,开始预加载preload资源组。
-     * configuration file loading is completed, start to pre-load the preload resource group
+     * 配置文件加载完成,开始预加载皮肤主题资源和preload资源组。
+     * Loading of configuration file is complete, start to pre-load the theme configuration file and the preload resource group
      */
     private onConfigComplete(event: RES.ResourceEvent): void {
         RES.removeEventListener(RES.ResourceEvent.CONFIG_COMPLETE, this.onConfigComplete, this);
+        // load skin theme configuration file, you can manually modify the file. And replace the default skin.
+        //加载皮肤主题配置文件,可以手动修改这个文件。替换默认皮肤。
+        let theme = new eui.Theme("resource/default.thm.json", this.stage);
+        theme.addEventListener(eui.UIEvent.COMPLETE, this.onThemeLoadComplete, this);
+
         RES.addEventListener(RES.ResourceEvent.GROUP_COMPLETE, this.onResourceLoadComplete, this);
         RES.addEventListener(RES.ResourceEvent.GROUP_LOAD_ERROR, this.onResourceLoadError, this);
         RES.addEventListener(RES.ResourceEvent.GROUP_PROGRESS, this.onResourceProgress, this);
         RES.addEventListener(RES.ResourceEvent.ITEM_LOAD_ERROR, this.onItemLoadError, this);
         RES.loadGroup("preload");
     }
-
+    private isThemeLoadEnd: boolean = false;
+    /**
+     * 主题文件加载完成,开始预加载
+     * Loading of theme configuration file is complete, start to pre-load the 
+     */
+    private onThemeLoadComplete(): void {
+        this.isThemeLoadEnd = true;
+        this.createScene();
+    }
+    private isResourceLoadEnd: boolean = false;
     /**
      * preload资源组加载完成
-     * Preload resource group is loaded
+     * preload resource group is loaded
      */
-    private onResourceLoadComplete(event: RES.ResourceEvent) {
+    private onResourceLoadComplete(event: RES.ResourceEvent): void {
         if (event.groupName == "preload") {
             this.stage.removeChild(this.loadingView);
             RES.removeEventListener(RES.ResourceEvent.GROUP_COMPLETE, this.onResourceLoadComplete, this);
             RES.removeEventListener(RES.ResourceEvent.GROUP_LOAD_ERROR, this.onResourceLoadError, this);
             RES.removeEventListener(RES.ResourceEvent.GROUP_PROGRESS, this.onResourceProgress, this);
             RES.removeEventListener(RES.ResourceEvent.ITEM_LOAD_ERROR, this.onItemLoadError, this);
-            this.createGameScene();
+            this.isResourceLoadEnd = true;
+            this.createScene();
         }
     }
-
+    private createScene() {
+        if (this.isThemeLoadEnd && this.isResourceLoadEnd) {
+            this.startCreateScene();
+        }
+    }
     /**
      * 资源组加载出错
      *  The resource group loading failed
      */
-    private onItemLoadError(event: RES.ResourceEvent) {
+    private onItemLoadError(event: RES.ResourceEvent): void {
         console.warn("Url:" + event.resItem.url + " has failed to load");
     }
-
     /**
      * 资源组加载出错
-     *  The resource group loading failed
+     * Resource group loading failed
      */
-    private onResourceLoadError(event: RES.ResourceEvent) {
+    private onResourceLoadError(event: RES.ResourceEvent): void {
         //TODO
         console.warn("Group:" + event.groupName + " has failed to load");
         //忽略加载失败的项目
-        //Ignore the loading failed projects
+        //ignore loading failed projects
         this.onResourceLoadComplete(event);
     }
-
     /**
      * preload资源组加载进度
-     * Loading process of preload resource group
+     * loading process of preload resource
      */
-    private onResourceProgress(event: RES.ResourceEvent) {
+    private onResourceProgress(event: RES.ResourceEvent): void {
         if (event.groupName == "preload") {
             this.loadingView.setProgress(event.itemsLoaded, event.itemsTotal);
         }
@@ -148,10 +153,10 @@ class Main extends egret.DisplayObjectContainer {
     private _icon:egret.DisplayObject;
 
     /**
-     * 创建游戏场景
-     * Create a game scene
+     * 创建场景界面
+     * Create scene interface
      */
-    private createGameScene() {
+    protected startCreateScene(): void {
         let sky = this.createBitmapByName("bg_jpg");
         this.addChild(sky);
         let stageW = this.stage.stageWidth;
@@ -192,25 +197,37 @@ class Main extends egret.DisplayObjectContainer {
 
         //根据name关键字，异步获取一个json配置文件，name属性请参考resources/resource.json配置文件的内容。
         // Get asynchronously a json configuration file according to name keyword. As for the property of name please refer to the configuration file of resources/resource.json.
-        RES.getResAsync("description_json", this.startAnimation, this)
-    }
+        RES.getResAsync("description_json", this.startAnimation, this);
 
+        let button1 = new eui.Button();
+        button1.label = "充值";
+        button1.x = 16;
+        button1.y = 900;
+        this.addChild(button1);
+        button1.addEventListener(egret.TouchEvent.TOUCH_TAP, this.onButton1Click, this);
+
+        let button2 = new eui.Button();
+        button2.label = "清空";
+        button2.x = 166;
+        button2.y = 900;
+        this.addChild(button2);
+        button2.addEventListener(egret.TouchEvent.TOUCH_TAP, this.onButton2Click, this);
+    }
     /**
      * 根据name关键字创建一个Bitmap对象。name属性请参考resources/resource.json配置文件的内容。
      * Create a Bitmap object according to name keyword.As for the property of name please refer to the configuration file of resources/resource.json.
      */
-    private createBitmapByName(name: string) {
+    private createBitmapByName(name: string): egret.Bitmap {
         let result = new egret.Bitmap();
         let texture: egret.Texture = RES.getRes(name);
         result.texture = texture;
         return result;
     }
-
     /**
      * 描述文件加载成功，开始播放动画
      * Description file loading is successful, start to play the animation
      */
-    private startAnimation(result: string[]) {
+    private startAnimation(result: Array<any>): void {
         let parser = new egret.HtmlTextParser();
 
         let textflowArr = result.map(text => parser.parse(text));
@@ -235,6 +252,44 @@ class Main extends egret.DisplayObjectContainer {
 
         change();
     }
+
+    /**
+     * 点击按钮1
+     * Click the button
+     */
+    private onButton1Click(e: egret.TouchEvent) {
+        var nameInput:eui.TextInput = new eui.TextInput();
+        nameInput.prompt = "输入钻石数:";
+        nameInput.horizontalCenter = 0;
+        nameInput.verticalCenter = 15;
+
+        let panel = new eui.Panel();
+        panel.title = "提示";
+        panel.addChild(nameInput);
+        panel.horizontalCenter = 0;
+        panel.verticalCenter = 0;
+        this.addChild(panel);
+    }
+
+    /**
+     * 点击按钮2
+     * Click the button
+     */
+    private onButton2Click(e: egret.TouchEvent) {
+        let textfield = new egret.TextField();
+        textfield.text = "清空成功！";
+        textfield.width = 172;
+        textfield.textAlign = egret.HorizontalAlign.CENTER;
+        textfield.size = 24;
+        textfield.textColor = 0x000000;
+        textfield.x = 102;
+        textfield.y = 85;
+
+        let panel = new eui.Panel();
+        panel.title = "提示";
+        panel.addChild(textfield);
+        panel.horizontalCenter = 0;
+        panel.verticalCenter = 0;
+        this.addChild(panel);
+    }
 }
-
-
